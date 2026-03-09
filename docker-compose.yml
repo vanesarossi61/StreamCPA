@@ -1,0 +1,110 @@
+# ==========================================
+# StreamCPA — Docker Compose (Development + Production)
+# ==========================================
+# Usage:
+#   Development: docker compose up
+#   Production:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ==========================================
+
+version: "3.9"
+
+services:
+  # ---- PostgreSQL ----
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: streamcpa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-streamcpa_dev}
+      POSTGRES_DB: streamcpa
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U streamcpa"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---- Redis (rate limiting + cache) ----
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---- StreamCPA App ----
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.local
+    environment:
+      - DATABASE_URL=postgresql://streamcpa:${POSTGRES_PASSWORD:-streamcpa_dev}@db:5432/streamcpa?schema=public
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+  # ---- Prisma Studio (dev only) ----
+  studio:
+    image: node:20-alpine
+    working_dir: /app
+    command: npx prisma studio
+    ports:
+      - "5555:5555"
+    environment:
+      - DATABASE_URL=postgresql://streamcpa:${POSTGRES_PASSWORD:-streamcpa_dev}@db:5432/streamcpa?schema=public
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - dev
+
+  # ---- DB Migrations Runner ----
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    command: npx prisma migrate deploy
+    environment:
+      - DATABASE_URL=postgresql://streamcpa:${POSTGRES_PASSWORD:-streamcpa_dev}@db:5432/streamcpa?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - migrate
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+networks:
+  default:
+    name: streamcpa-network
