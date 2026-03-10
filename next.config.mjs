@@ -136,9 +136,11 @@ const nextConfig = {
   },
 
   // ==============================================
-  // Server External Packages (Next.js 14.x syntax)
+  // Experimental (Next.js 14.1.x syntax)
   // ==============================================
-  serverExternalPackages: ["@prisma/client", "bcryptjs"],
+  experimental: {
+    serverComponentsExternalPackages: ["@prisma/client", "bcryptjs"],
+  },
 };
 
 export default nextConfig;
