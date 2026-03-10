@@ -1,0 +1,509 @@
+// StreamCPA — Prisma Schema
+// Database: PostgreSQL (Supabase)
+// Run: npx prisma migrate dev --name init
+// Seed: npx prisma db seed
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_DIRECT")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum UserRole {
+  STREAMER
+  BRAND
+  ADMIN
+}
+
+enum StreamerStatus {
+  ONBOARDING
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum BrandStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum ConversionType {
+  SIGNUP
+  DEPOSIT
+  PURCHASE
+  SALE
+  INSTALL
+  LEAD
+  SUBSCRIPTION
+  CUSTOM
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ConversionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  UNDER_REVIEW
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum DepositStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum NotificationType {
+  APPLICATION
+  CONVERSION
+  PAYOUT
+  CAMPAIGN
+  SYSTEM
+}
+
+enum MaterialType {
+  IMAGE
+  VIDEO
+  TEXT
+  LINK
+}
+
+// ==========================================
+// AUTH (NextAuth.js compatible)
+// ==========================================
+
+model User {
+  id             String    @id @default(cuid())
+  name           String?
+  email          String    @unique
+  emailVerified  DateTime?
+  image          String?
+  hashedPassword String?
+  role           UserRole  @default(STREAMER)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  streamer      Streamer?
+  brand         Brand?
+  notifications Notification[]
+
+  // Admin actions
+  reviewedConversions Conversion[] @relation("ReviewedBy")
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ==========================================
+// STREAMER
+// ==========================================
+
+model Streamer {
+  id                 String         @id @default(cuid())
+  userId             String         @unique
+  status             StreamerStatus @default(ONBOARDING)
+  onboardingStep     Int            @default(0)
+
+  // Twitch profile
+  twitchId           String?        @unique
+  twitchUsername     String?
+  twitchDisplayName  String?
+  twitchAvatar       String?
+  twitchFollowers    Int            @default(0)
+  avgViewers         Int            @default(0)
+  mainCategory       String?
+
+  // Profile
+  bio                String?        @db.Text
+  country            String?
+  categories         String[]       @default([])
+  languages          String[]       @default([])
+  streamerScore      Int            @default(0)
+
+  // Payout info
+  paypalEmail        String?
+  wiseEmail          String?
+  preferredPayout    String?        @default("paypal")
+
+  // Balances
+  balanceAvailable   Float          @default(0)
+  balancePending     Float          @default(0)
+  totalEarned        Float          @default(0)
+
+  // Timestamps
+  termsAcceptedAt    DateTime?
+  lastSyncAt         DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  // Relations
+  user               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications       CampaignApplication[]
+  affiliateLinks     AffiliateLink[]
+  clicks             Click[]
+  conversions        Conversion[]
+  payouts            Payout[]
+
+  @@index([status])
+  @@index([streamerScore])
+  @@index([twitchFollowers])
+  @@map("streamers")
+}
+
+// ==========================================
+// BRAND
+// ==========================================
+
+model Brand {
+  id             String      @id @default(cuid())
+  userId         String      @unique
+  companyName    String
+  website        String?
+  industry       String?
+  description    String?     @db.Text
+  logo           String?
+  contactName    String?
+  contactEmail   String?
+  status         BrandStatus @default(PENDING_VERIFICATION)
+  verifiedAt     DateTime?
+
+  // Financial
+  escrowBalance  Float       @default(0)
+  totalSpent     Float       @default(0)
+
+  // Timestamps
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  // Relations
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaigns      Campaign[]
+  deposits       Deposit[]
+
+  @@index([status])
+  @@map("brands")
+}
+
+// ==========================================
+// CAMPAIGN
+// ==========================================
+
+model Campaign {
+  id                   String         @id @default(cuid())
+  brandId              String
+  name                 String
+  slug                 String         @unique
+  description          String         @db.Text
+  shortDescription     String?
+  landingUrl           String
+  conversionType       ConversionType
+  payoutPerConversion  Float
+  platformFee          Float          @default(0)
+  totalBudget          Float
+  remainingBudget      Float
+  spent                Float          @default(0)
+  status               CampaignStatus @default(DRAFT)
+
+  // Targeting
+  categories           String[]       @default([])
+  countries            String[]       @default([])
+  minFollowers         Int            @default(0)
+  minAvgViewers        Int            @default(0)
+  autoApprove          Boolean        @default(false)
+
+  // Attribution
+  attributionWindow    Int            @default(30) // days
+
+  // Timestamps
+  publishedAt          DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  // Relations
+  brand                Brand                 @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  applications         CampaignApplication[]
+  affiliateLinks       AffiliateLink[]
+  materials            CampaignMaterial[]
+  clicks               Click[]
+  conversions          Conversion[]
+
+  @@index([status])
+  @@index([brandId])
+  @@index([conversionType])
+  @@map("campaigns")
+}
+
+model CampaignMaterial {
+  id         String       @id @default(cuid())
+  campaignId String
+  type       MaterialType
+  title      String
+  url        String?
+  content    String?      @db.Text
+  createdAt  DateTime     @default(now())
+
+  campaign   Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("campaign_materials")
+}
+
+// ==========================================
+// APPLICATION
+// ==========================================
+
+model CampaignApplication {
+  id         String            @id @default(cuid())
+  campaignId String
+  streamerId String
+  status     ApplicationStatus @default(PENDING)
+  message    String?           @db.Text
+  reviewedAt DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  streamer   Streamer  @relation(fields: [streamerId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, streamerId])
+  @@index([status])
+  @@map("campaign_applications")
+}
+
+// ==========================================
+// AFFILIATE LINK
+// ==========================================
+
+model AffiliateLink {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  campaignId       String
+  streamerId       String
+  targetUrl        String
+  isActive         Boolean  @default(true)
+  totalClicks      Int      @default(0)
+  totalConversions Int      @default(0)
+  totalEarnings    Float    @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  campaign    Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  streamer    Streamer     @relation(fields: [streamerId], references: [id], onDelete: Cascade)
+  clicks      Click[]
+  conversions Conversion[]
+
+  @@index([campaignId])
+  @@index([streamerId])
+  @@index([isActive])
+  @@map("affiliate_links")
+}
+
+// ==========================================
+// CLICK TRACKING
+// ==========================================
+
+model Click {
+  id              String   @id @default(cuid())
+  affiliateLinkId String
+  campaignId      String
+  streamerId      String
+  clickId         String   @unique // UUID for deduplication
+  ipHash          String   // SHA-256 of IP for privacy
+  country         String?
+  device          String?
+  userAgent       String?  @db.Text
+  referer         String?
+  flagged         Boolean  @default(false)
+  fraudScore      Int      @default(0)
+  flagReason      String?
+  createdAt       DateTime @default(now())
+
+  affiliateLink   AffiliateLink @relation(fields: [affiliateLinkId], references: [id], onDelete: Cascade)
+  campaign        Campaign      @relation(fields: [campaignId], references: [id])
+  streamer        Streamer      @relation(fields: [streamerId], references: [id])
+  conversions     Conversion[]
+
+  @@index([affiliateLinkId])
+  @@index([campaignId])
+  @@index([streamerId])
+  @@index([ipHash])
+  @@index([flagged])
+  @@index([createdAt])
+  @@map("clicks")
+}
+
+// ==========================================
+// CONVERSION
+// ==========================================
+
+model Conversion {
+  id              String           @id @default(cuid())
+  clickId         String
+  affiliateLinkId String
+  campaignId      String
+  streamerId      String
+  externalId      String?          @unique // ID from advertiser
+  payout          Float
+  platformFee     Float            @default(0)
+  totalAmount     Float            @default(0)
+  status          ConversionStatus @default(PENDING)
+  fraudScore      Int              @default(0)
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  click           Click         @relation(fields: [clickId], references: [id])
+  affiliateLink   AffiliateLink @relation(fields: [affiliateLinkId], references: [id])
+  campaign        Campaign      @relation(fields: [campaignId], references: [id])
+  streamer        Streamer      @relation(fields: [streamerId], references: [id])
+  reviewer        User?         @relation("ReviewedBy", fields: [reviewedBy], references: [id])
+
+  @@index([status])
+  @@index([campaignId])
+  @@index([streamerId])
+  @@index([fraudScore])
+  @@index([createdAt])
+  @@map("conversions")
+}
+
+// ==========================================
+// DEPOSIT (brand funding)
+// ==========================================
+
+model Deposit {
+  id                    String        @id @default(cuid())
+  brandId               String
+  amount                Float
+  stripeSessionId       String?       @unique
+  stripePaymentIntentId String?       @unique
+  status                DepositStatus @default(PENDING)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId])
+  @@index([status])
+  @@map("deposits")
+}
+
+// ==========================================
+// PAYOUT (streamer withdrawal)
+// ==========================================
+
+model Payout {
+  id            String       @id @default(cuid())
+  streamerId    String
+  amount        Float
+  method        String       @default("paypal") // paypal | wise
+  status        PayoutStatus @default(PENDING)
+  externalId    String?      // PayPal/Wise transaction ID
+  failureReason String?
+  requestedAt   DateTime     @default(now())
+  processedAt   DateTime?
+  periodStart   DateTime?
+  periodEnd     DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  streamer Streamer @relation(fields: [streamerId], references: [id], onDelete: Cascade)
+
+  @@index([streamerId])
+  @@index([status])
+  @@map("payouts")
+}
+
+// ==========================================
+// NOTIFICATION
+// ==========================================
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([createdAt])
+  @@map("notifications")
+}
