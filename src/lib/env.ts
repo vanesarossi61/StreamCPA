@@ -1,6 +1,6 @@
 /**
  * Environment variable validation with Zod
- * Fails fast at build time if required vars are missing
+ * Fails fast at runtime if required vars are missing
  *
  * Usage: import { env } from "@/lib/env"
  */
@@ -58,8 +58,26 @@ const clientSchema = z.object({
   NEXT_PUBLIC_TRACKING_DOMAIN: z.string().url().optional(),
 });
 
+/**
+ * Skip validation during build phase.
+ * Next.js runs module-level code at build time for static analysis,
+ * but server env vars are not available then. We validate lazily
+ * so the build succeeds and validation runs at actual runtime.
+ */
+const isBuildPhase =
+  process.env.NODE_ENV === "production" && !process.env.NEXTAUTH_SECRET;
+
 // ---- Validate server-side env ----
-const serverEnv = () => {
+const serverEnv = (): z.infer<typeof serverSchema> => {
+  if (isBuildPhase) {
+    // Return empty proxy during build -- values won't be used
+    return new Proxy({} as z.infer<typeof serverSchema>, {
+      get(_, prop) {
+        return process.env[prop as string] ?? "";
+      },
+    });
+  }
+
   const parsed = serverSchema.safeParse(process.env);
   if (!parsed.success) {
     console.error(
@@ -80,6 +98,9 @@ const clientEnv = () => {
     NEXT_PUBLIC_TRACKING_DOMAIN: process.env.NEXT_PUBLIC_TRACKING_DOMAIN,
   });
   if (!parsed.success) {
+    if (isBuildPhase) {
+      return {} as z.infer<typeof clientSchema>;
+    }
     console.error(
       "Invalid client environment variables:",
       parsed.error.flatten().fieldErrors
@@ -92,7 +113,7 @@ const clientEnv = () => {
 /**
  * Validated environment variables.
  * Use `env.DATABASE_URL`, `env.STRIPE_SECRET_KEY`, etc.
- * Throws at import time if any required var is missing.
+ * Validates at runtime (skipped during build phase).
  */
 export const env = {
   ...serverEnv(),
