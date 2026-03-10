@@ -304,12 +304,44 @@ export const calculatePayout = inngest.createFunction(
               gte: new Date(periodStart),
               lte: new Date(periodEnd),
             },
+            // 14-day hold: only include conversions older than 14 days
+            // This prevents paying out before fraud review window closes
+            updatedAt: {
+              lte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+            },
           },
           _sum: { payout: true },
           _count: true,
         });
         return { total: agg._sum.payout || 0, count: agg._count };
       });
+
+      // Log hold-period filtering for transparency
+      const heldBack = await step.run("check-held-conversions", async () => {
+        const heldCount = await db.conversion.aggregate({
+          where: {
+            streamerId,
+            status: "APPROVED",
+            createdAt: {
+              gte: new Date(periodStart),
+              lte: new Date(periodEnd),
+            },
+            // These are within the 14-day hold window (not yet eligible)
+            updatedAt: {
+              gt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+            },
+          },
+          _sum: { payout: true },
+          _count: true,
+        });
+        return { heldTotal: heldCount._sum.payout || 0, heldCount: heldCount._count };
+      });
+
+      if (heldBack.heldCount > 0) {
+        console.log(
+          `[payout] Streamer ${streamerId}: $${heldBack.heldTotal.toFixed(2)} held back (${heldBack.heldCount} conversions within 14-day hold window)`
+        );
+      }
 
       if (result.total < 10) {
         return { skipped: true, reason: "Below minimum payout threshold ($10)" };
