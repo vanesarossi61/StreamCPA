@@ -1,5 +1,5 @@
 # ==========================================
-# StreamCPA — Multi-stage Production Dockerfile
+# StreamCPA - Multi-stage Production Dockerfile
 # ==========================================
 # Stage 1: Dependencies
 # Stage 2: Build
