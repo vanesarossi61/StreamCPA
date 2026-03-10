@@ -114,7 +114,7 @@ export default async function HomePage() {
               {
                 step: "2",
                 title: "Find & apply to campaigns",
-                desc: "Browse the marketplace for CPA offers that match your audience. Apply with one click — some auto-approve instantly.",
+                desc: "Browse the marketplace for CPA offers that match your audience. Apply with one click \u2014 some auto-approve instantly.",
               },
               {
                 step: "3",
@@ -149,7 +149,7 @@ export default async function HomePage() {
             </h3>
             <p className="mt-3 max-w-lg text-muted-foreground">
               No more flat-rate sponsorships. With CPA, you earn based on real
-              results — the more your audience converts, the more you make.
+              results \u2014 the more your audience converts, the more you make.
             </p>
           </div>
 
@@ -169,11 +169,11 @@ export default async function HomePage() {
               },
               {
                 title: "Anti-fraud protection",
-                desc: "Our system protects your earnings from fraudulent clicks. Only real conversions count — no chargebacks on you.",
+                desc: "Our system protects your earnings from fraudulent clicks. Only real conversions count \u2014 no chargebacks on you.",
               },
               {
                 title: "One-click link generation",
-                desc: "Get your unique tracking link instantly. Works on stream overlays, panels, chat, social media — anywhere.",
+                desc: "Get your unique tracking link instantly. Works on stream overlays, panels, chat, social media \u2014 anywhere.",
               },
               {
                 title: "Performance analytics",
@@ -209,7 +209,7 @@ export default async function HomePage() {
             </h3>
             <p className="mt-3 max-w-lg text-muted-foreground">
               Launch CPA campaigns and reach thousands of streamers. You set the
-              payout, budget, and targeting — pay only when real conversions
+              payout, budget, and targeting \u2014 pay only when real conversions
               happen.
             </p>
           </div>
@@ -218,7 +218,7 @@ export default async function HomePage() {
             {[
               {
                 title: "CPA pricing model",
-                desc: "Define your own payout per conversion. Sales, signups, installs, subscriptions — any conversion type.",
+                desc: "Define your own payout per conversion. Sales, signups, installs, subscriptions \u2014 any conversion type.",
               },
               {
                 title: "Smart targeting",
