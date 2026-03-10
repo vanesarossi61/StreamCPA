@@ -1,17 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // ==============================================
+  // =================================================
   // Core
-  // ==============================================
+  // =================================================
   reactStrictMode: true,
   poweredByHeader: false, // Remove X-Powered-By header
 
   // Standalone output for Docker deployments
   output: "standalone",
 
-  // ==============================================
+  // =================================================
   // Image Optimization
-  // ==============================================
+  // =================================================
   images: {
     remotePatterns: [
       {
@@ -39,9 +39,9 @@ const nextConfig = {
     minimumCacheTTL: 60 * 60 * 24, // 24 hours
   },
 
-  // ==============================================
+  // =================================================
   // Security Headers
-  // ==============================================
+  // =================================================
   async headers() {
     return [
       {
@@ -95,18 +95,15 @@ const nextConfig = {
         // Cache static assets aggressively
         source: "/fonts/(.*)",
         headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
         ],
       },
     ];
   },
 
-  // ==============================================
+  // =================================================
   // Redirects
-  // ==============================================
+  // =================================================
   async redirects() {
     return [
       {
@@ -117,11 +114,10 @@ const nextConfig = {
     ];
   },
 
-  // ==============================================
+  // =================================================
   // Webpack & Bundle Optimization
-  // ==============================================
+  // =================================================
   webpack: (config, { isServer }) => {
-    // Fix for packages that reference node-specific modules
     if (!isServer) {
       config.resolve = config.resolve ?? {};
       config.resolve.fallback = {
@@ -135,9 +131,9 @@ const nextConfig = {
     return config;
   },
 
-  // ==============================================
-  // Experimental (Next.js 14.1.x syntax)
-  // ==============================================
+  // =================================================
+  // Server External Packages (Next.js 14.1.0 syntax)
+  // =================================================
   experimental: {
     serverComponentsExternalPackages: ["@prisma/client", "bcryptjs"],
   },
