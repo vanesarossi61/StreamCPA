@@ -1,11 +1,8 @@
 {
   "semi": true,
+  "trailingComma": "all",
   "singleQuote": false,
-  "tabWidth": 2,
-  "trailingComma": "es5",
   "printWidth": 100,
-  "bracketSpacing": true,
-  "arrowParens": "always",
-  "endOfLine": "lf",
+  "tabWidth": 2,
   "plugins": ["prettier-plugin-tailwindcss"]
 }
